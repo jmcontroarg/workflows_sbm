@@ -1,0 +1,79 @@
+[SELECT distinct ord.ordtyp,
+        sl.ship_id,
+        cdt.cartyp
+   FROM inventory_view iv
+   JOIN shipment_line sl
+     on sl.ship_line_id = iv.ship_line_id
+    and sl.wh_id = iv.wh_id
+    and sl.client_id = iv.prt_client_id
+   JOIN ord_line ol
+     ON ol.ordnum = sl.ordnum
+    and ol.ordlin = sl.ordlin
+    and ol.ordsln = sl.ordsln
+    and ol.wh_id = sl.wh_id
+    and ol.client_id = sl.client_id
+   JOIN ord
+     ON ord.ordnum = ol.ordnum
+    and ord.wh_id = ol.wh_id
+    and ord.client_id = ol.client_id
+   JOIN shipment sh
+     on sh.ship_id = sl.ship_id
+    and sh.wh_id = sl.wh_id
+   JOIN cardtl cdt
+     on sh.carcod = cdt.carcod
+  where iv.lodnum = @lodnum] catch(-1403)
+|
+/*HERE, WE MAKE SURE THE ORDER TYPE AND CARCOD IS IN THE POLICY*/
+list policies
+ where polcod = 'VAR_SHIP_CSLBL'
+   and polvar = 'PRINT_LABELS'
+   and polval = 'ORDTYP_CARCOD'
+   and rtstr1 = @ordtyp
+   and rtstr2 = @cartyp
+   and wh_id = nvl(@wh_id, @@wh_id) catch(-1403)
+|
+/*IN CASE WE FIND IT, WE VERIFY THE POLICY IS ON*/
+if (@rtnum1 = '1')
+{
+    /*WE COUNT ALL THE CASES IN THE LPN*/
+    [SELECT COUNT(DISTINCT ib.subnum) AS total_cases
+       FROM invsub ib
+       JOIN invdtl id
+         ON ib.subnum = id.subnum
+       JOIN shipment_line sl
+         ON id.ship_line_id = sl.ship_line_id
+      WHERE sl.ship_id = @ship_id
+        and ib.lodnum = @lodnum] catch(-1403)
+    |
+    /*WE ASSIGN AN INDEX TO EACH CASE*/
+    [SELECT ROW_NUMBER() OVER(ORDER BY ib.subnum) AS case_number,
+            ib.subnum
+       FROM invsub ib
+       JOIN invdtl id
+         ON ib.subnum = id.subnum
+       JOIN shipment_line sl
+         ON id.ship_line_id = sl.ship_line_id
+      WHERE sl.ship_id = @ship_id
+        and ib.lodnum = @lodnum
+      GROUP BY ib.subnum] catch(-1403)
+    |
+    /*WE VERIFY THE ATTRIBUTES IN THE INVDTL TABLE ARE CURRENTLY NULL*/
+    [select distinct invdtl.dtlnum,
+            invdtl.inv_attr_int3,
+            invdtl.inv_attr_int4
+       from invdtl
+       join invsub
+         on invdtl.subnum = invsub.subnum
+      where invsub.subnum = @subnum] catch(-1403)
+    |
+    if (@inv_attr_int3 is null or @inv_attr_int4 is null)
+    {
+        /*WE UPDATE THE INVENTORY ATTRIBUTES WITH THE NUMBER OF CASES AND CASE NUMBER ACCORDINGLY*/
+        execute command without stack
+         where command = 'change record'
+           and table = 'invdtl'
+           and dtlnum = @dtlnum
+           and inv_attr_int3 = @case_number
+           and inv_attr_int4 = @total_cases
+    }
+}
