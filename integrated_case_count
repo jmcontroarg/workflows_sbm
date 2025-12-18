@@ -29,7 +29,7 @@ list policies
    and polvar = 'PRINT_LABELS'
    and polval = 'ORDTYP_CARCOD'
    and rtstr1 = @ordtyp
-   and rtstr2 = @cartyp
+   /*and rtstr2 = @cartyp*/
    and wh_id = nvl(@wh_id, @@wh_id) catch(-1403)
 |
 /*IN CASE WE FIND IT, WE VERIFY THE POLICY IS ON*/
