@@ -1,0 +1,76 @@
+generate var cscnt
+ where dstloc = @dstloc
+   and wh_id = @wh_id
+   and lodnum = @lodnum
+   and @* catch(-1403)
+|
+[SELECT distinct ord.bt_adr_id,
+        cardtl.cartyp
+   FROM inventory_pckwrk_view
+   JOIN ord
+     on ord.ordnum = inventory_pckwrk_view.ordnum
+    and ord.wh_id = inventory_pckwrk_view.wh_id
+    and ord.client_id = inventory_pckwrk_view.prt_client_id
+   JOIN shipment
+     on shipment.ship_id = inventory_pckwrk_view.ship_id
+   JOIN cardtl
+     on shipment.carcod = cardtl.carcod
+  where inventory_pckwrk_view.lodnum = @lodnum] catch(-1403)
+|
+execute command without stack
+ where command = "list policies
+    where polcod = 'NLK_SBM'
+      and polvar = 'UCC_GENERATION'
+      and polval = 'BILL_TO_CUSTOMER_SUBLPN_SPLIT'
+      and rtstr1 = '" || @bt_adr_id || "'" catch(-1403)
+|
+if (@rtnum1 = 1)
+{
+    list policies
+     where polcod = 'VAR_SHIP_LABELS'
+       and polvar = 'PRINT_LABELS_PARCEL'
+       and polval = 'BILL_TO_CUST '
+       and rtstr1 = @bt_adr_id catch(-1403)
+    |
+    if (@rtnum1 = 1)
+    {
+        publish data
+         where label_name = @rtstr2
+        |
+        generate var shiplbl
+         where @* catch(-1403)
+    }
+    else
+    {
+        publish data
+         where label_name = 'VC_GEN_SHIPLBL'
+        |
+        generate var shiplbl
+         where @* catch(-1403)
+    }
+}
+else if (@cartyp = 'S')
+{
+    list policies
+     where polcod = 'VAR_SHIP_LABELS'
+       and polvar = 'PRINT_LABELS_PARCEL'
+       and polval = 'BILL_TO_CUST '
+       and rtstr1 = @bt_adr_id catch(-1403)
+    |
+    if (@rtnum1 = 1)
+    {
+        publish data
+         where label_name = @rtstr2
+        |
+        generate var shiplbl
+         where @* catch(-1403)
+    }
+    else
+    {
+        publish data
+         where label_name = 'VC_GEN_SHIPLBL'
+        |
+        generate var shiplbl
+         where @* catch(-1403)
+    }
+}
